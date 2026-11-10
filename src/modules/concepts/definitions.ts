@@ -13,6 +13,7 @@ import { sentences } from "../candidates";
 import { decide, llmDefinition, llmSettings } from "../clients";
 import { Concept, decisionConfigured } from "./analyze";
 import { cleanDocumentText } from "./doctext";
+import { papersWith } from "./conceptIndex";
 import { searchRelated, shortLabel } from "./related";
 import { log } from "../../utils/log";
 
@@ -114,13 +115,32 @@ async function fromLibrary(
   current: Zotero.Item | null,
   libraryID: number,
 ): Promise<Definition | undefined> {
-  const { papers } = await searchRelated(libraryID, concept.term, current, 6);
   const options: {
     sentence: string;
     score: number;
     itemID: number;
     label: string;
   }[] = [];
+  // Analysed papers that define the concept (library concept index)
+  for (const e of await papersWith(
+    libraryID,
+    [concept.term, ...concept.aliases],
+    current?.id,
+  )) {
+    if (!e.definition || options.length >= 8) continue;
+    const item = Zotero.Items.get(e.itemID);
+    if (item && !item.deleted)
+      options.push({
+        sentence: e.definition,
+        score: 3,
+        itemID: item.id,
+        label: shortLabel(item),
+      });
+  }
+  // Else scan the full text of papers that mention it
+  const { papers } = options.length
+    ? { papers: [] }
+    : await searchRelated(libraryID, concept.term, current, 6);
   for (const p of papers) {
     const item = Zotero.Items.get(p.itemID);
     if (!item) continue;

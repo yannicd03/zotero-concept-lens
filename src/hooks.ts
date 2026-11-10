@@ -7,6 +7,10 @@ import {
   stopReaderIntegration,
 } from "./modules/reader/manager";
 import { flush as flushUsage } from "./modules/usage";
+import {
+  startBackgroundIntegration,
+  stopBackgroundIntegration,
+} from "./modules/concepts/background";
 import { state } from "./state";
 import { log } from "./utils/log";
 
@@ -28,10 +32,12 @@ async function onStartup() {
     log("LLM provider migration failed", e),
   );
   startReaderIntegration();
+  startBackgroundIntegration();
   state.initialized = true;
 }
 
 function onShutdown() {
+  stopBackgroundIntegration();
   stopReaderIntegration();
   flushUsage().catch((e) => log("saving usage failed", e));
   state.alive = false;

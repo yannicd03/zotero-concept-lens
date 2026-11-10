@@ -1,6 +1,11 @@
 // Concept marking in the PDF reader
 pref("highlight.enabled", true);
 
+// Analyse every PDF in the library in the background (rules + one
+// decision-model request per paper), so concepts link across papers that
+// were never opened. Definitions are still only generated on hover.
+pref("index.enabled", true);
+
 // Hover card: comma-separated section order; sections listed in
 // card.hiddenSections are not shown. Sections: definition, excerpt, related
 pref("card.sectionOrder", "definition,excerpt,related");

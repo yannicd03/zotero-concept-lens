@@ -341,9 +341,17 @@ export class ConceptCard {
         for (const p of papers) {
           const row = this.div(`${ref}-paper`);
           row.title = p.hasPDF ? "Open PDF" : "Show in library";
+          const how = p.defines
+            ? "defines it"
+            : p.mentions
+              ? `${p.mentions}× in the paper`
+              : "mentions it";
           row.append(
             this.div("", p.title),
-            this.div(`${ref}-paper-meta`, p.label),
+            this.div(
+              `${ref}-paper-meta`,
+              [p.label, how].filter(Boolean).join(" · "),
+            ),
           );
           row.addEventListener("click", () => this.actions.openItem(p.itemID));
           list.append(row);

@@ -32,3 +32,15 @@ export async function removeAll(...parts: string[]) {
   const path = PathUtils.join(baseDir(), ...parts);
   await IOUtils.remove(path, { recursive: true, ignoreAbsent: true });
 }
+
+/** File names in a folder under the base directory ([] if it doesn't exist). */
+export async function listFiles(...parts: string[]): Promise<string[]> {
+  const dir = PathUtils.join(baseDir(), ...parts);
+  try {
+    if (!(await IOUtils.exists(dir))) return [];
+    return (await IOUtils.getChildren(dir)).map((p) => PathUtils.filename(p));
+  } catch (e) {
+    log("listFiles failed", dir, e);
+    return [];
+  }
+}

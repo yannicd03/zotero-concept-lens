@@ -38,6 +38,18 @@ Two stages: rules propose candidates, a model filters them.
 
 Results are cached per paper, so a paper is only analysed once.
 
+### Linking across the library
+
+In the background, Concept Lens analyses every PDF in your library the same
+way, one paper at a time, newest first, so concepts link across papers you
+have never opened. It builds a library-wide index of which papers define or
+use each concept. Definitions are not generated in the background; the LLM
+runs only when you hover a concept in an open paper. The background pass
+skips papers it has already analysed, retries PDFs Zotero hasn't indexed
+yet, pauses if the decision model fails (for example when credits run out)
+and checks for new papers every 30 minutes. It can be switched off in the
+settings.
+
 ### Definitions
 
 The card takes the first definition it finds, in this order:
@@ -51,8 +63,9 @@ The card takes the first definition it finds, in this order:
    are marked with an **AI** badge and remembered in the glossary;
 5. the sentence in which the paper introduces the acronym.
 
-The other papers come from Zotero's full-text index, so only papers whose
-PDFs Zotero has indexed are found.
+The card's "other papers in your library" come from that index: papers
+that define the concept first, then those that use it most. Papers not
+analysed yet are found through Zotero's full-text index.
 
 ### Citations
 
@@ -124,7 +137,7 @@ result is cached, so later visits are instant.
 
 | Setting        | What it does                                                                                                                                                                                                                                                                                                                              |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Marking        | Switch the concept underlines and the citation hover on or off.                                                                                                                                                                                                                                                                           |
+| Marking        | Switch the concept underlines, the citation hover and background linking across the library on or off; shows the background progress.                                                                                                                                                                                                     |
 | Hover card     | Show or hide the card's sections and order those below the definition. Number of other papers shown (default 5).                                                                                                                                                                                                                          |
 | Decision model | Format (`systemone` or an OpenAI-compatible chat model), endpoint, model, API key, link threshold. Default: Jev (`typesafe/jev-1.14`) via OpenRouter's `/systemone` route.                                                                                                                                                                |
 | LLM fallback   | Provider: **DeepSeek** (Flash or Pro), **Anthropic** (Claude Haiku, Sonnet or Opus), **OpenRouter** (DeepSeek Flash, Claude Haiku or Sonnet, Gemini Flash, GPT-6 Luna) or a **custom** endpoint (OpenAI-compatible or Anthropic Messages format). Each provider keeps its own API key; OpenRouter falls back to the decision model's key. |
@@ -135,9 +148,10 @@ result is cached, so later visits are instant.
 - **API keys** are stored in Zotero's login manager (like Zotero's own sync
   credentials), not in the preferences file.
 - **Without API keys,** nothing leaves your computer.
-- **With a decision model configured,** the open paper's title and the
-  first 60,000 characters of its text go to that endpoint, once per paper.
-  So do candidate defining sentences from your other papers.
+- **With a decision model configured,** each paper's title and the first
+  60,000 characters of its text go to that endpoint, once per paper: the
+  papers you open and, while background linking is on, every PDF in your
+  library. So do candidate defining sentences from your other papers.
 - **With an LLM configured,** the concept, the paper's title and abstract,
   and the passage that uses the concept go to that endpoint, once per
   concept.

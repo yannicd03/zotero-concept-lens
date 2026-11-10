@@ -18,6 +18,7 @@ import {
   llmSettings,
 } from "./clients";
 import { ModelRow, Totals, reset as resetUsage, summary } from "./usage";
+import { backgroundStatus } from "./concepts/background";
 import {
   LlmProvider,
   PRESETS,
@@ -39,6 +40,7 @@ export async function registerPrefsScripts(win: Window) {
   // OpenRouter may use the decision key, so its key field follows it.
   bindSecret(doc, `${ref}-decision-key`, "decision", refreshLlm);
   bindUsage(win);
+  bindIndexStatus(win);
   doc
     .getElementById(`${ref}-decision-test`)
     ?.addEventListener("command", () => testDecision(doc));
@@ -202,6 +204,38 @@ function bindLlmProvider(doc: Document): () => void {
   );
   render();
   return render;
+}
+
+// --- background analysis -------------------------------------------------------
+
+export function indexStatusText(
+  s: ReturnType<typeof backgroundStatus>,
+): string {
+  const progress = s.total ? `${s.analysed} of ${s.total} papers analysed` : "";
+  const noText = s.noText ? `, ${s.noText} without text yet` : "";
+  switch (s.state) {
+    case "off":
+      return "";
+    case "waiting":
+      return s.total
+        ? `${progress}${noText}. Next pass soon.`
+        : "Starts shortly after Zotero has started.";
+    case "running":
+      return `Analysing: ${progress}${noText}…`;
+    case "paused":
+      return `Paused (${s.error}). ${progress}. Retries in 30 minutes.`;
+    case "done":
+      return `${progress}${noText}.`;
+  }
+}
+
+function bindIndexStatus(win: Window) {
+  const el = win.document.getElementById(`${ref}-index-status`);
+  if (!el) return;
+  const update = () => (el.textContent = indexStatusText(backgroundStatus()));
+  update();
+  const t = win.setInterval(update, 2000);
+  win.addEventListener("unload", () => win.clearInterval(t));
 }
 
 // --- spending ----------------------------------------------------------------

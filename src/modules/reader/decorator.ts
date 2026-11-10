@@ -10,7 +10,7 @@
 import { config } from "../../../package.json";
 import type { Concept, ConceptSet } from "../concepts/analyze";
 import { llmConfigured, resolveDefinition } from "../concepts/definitions";
-import { searchRelated } from "../concepts/related";
+import { relatedPapers } from "../concepts/related";
 import { llmPause } from "../clients";
 import { getPref } from "../../utils/prefs";
 import { CardContent, ConceptCard, Excerpt } from "./card";
@@ -381,9 +381,9 @@ export class ViewDecorator {
         log("definition failed", e);
         return undefined;
       }),
-      related: searchRelated(
+      related: relatedPapers(
         this.att.libraryID,
-        concept.term,
+        [concept.term, ...concept.aliases],
         parent,
         limit,
       ).catch((e) => {

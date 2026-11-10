@@ -16,6 +16,7 @@ export type FluentMessageId =
   | 'pref-format-systemone'
   | 'pref-help'
   | 'pref-highlight'
+  | 'pref-index'
   | 'pref-key'
   | 'pref-llm-enabled'
   | 'pref-llm-hint'

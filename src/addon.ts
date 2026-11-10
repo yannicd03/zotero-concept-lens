@@ -18,6 +18,8 @@ import * as reader from "./modules/reader/manager";
 import * as citations from "./modules/citations/match";
 import * as citationLibrary from "./modules/citations/library";
 import * as usage from "./modules/usage";
+import * as conceptIndex from "./modules/concepts/conceptIndex";
+import * as background from "./modules/concepts/background";
 import * as prefs from "./modules/preferenceScript";
 
 export const plugin = {
@@ -39,5 +41,7 @@ export const plugin = {
     citationLibrary,
     usage,
     prefs,
+    conceptIndex,
+    background,
   },
 };

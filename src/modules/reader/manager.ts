@@ -181,3 +181,6 @@ export function attachedCount() {
 export function citationHookCount() {
   return [...citationHooks.values()].filter((h) => h !== "pending").length;
 }
+
+/** For tests: the hover card's "other papers" lookup. */
+export { relatedPapers as relatedPapersFor } from "../concepts/related";

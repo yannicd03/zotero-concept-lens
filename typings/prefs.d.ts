@@ -8,6 +8,7 @@ declare namespace _ZoteroTypes {
   interface Prefs {
     PluginPrefsMap: {
       "highlight.enabled": boolean;
+      "index.enabled": boolean;
       "card.sectionOrder": string;
       "card.hiddenSections": string;
       "card.relatedLimit": number;

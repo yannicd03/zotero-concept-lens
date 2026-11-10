@@ -8,6 +8,7 @@ import { Candidate, proposeCandidates } from "../candidates";
 import { DecisionQuestion, decide, decisionSettings } from "../clients";
 import { cleanDocumentText } from "./doctext";
 import { log } from "../../utils/log";
+import { updateIndex } from "./conceptIndex";
 
 export interface Concept {
   id: string;
@@ -30,6 +31,8 @@ export interface ConceptSet {
   concepts: Concept[];
   /** Set when the decision model was configured but failed */
   error?: string;
+  /** Zotero has no text for the PDF yet (not full-text indexed) */
+  noText?: boolean;
 }
 
 const VERSION = 4; // bump when candidate generation changes
@@ -110,9 +113,21 @@ async function decisionFilter(
 
 const inflight = new Map<string, Promise<ConceptSet>>();
 
-function cacheName(att: Zotero.Item) {
+export function cacheName(att: Zotero.Item) {
   return `${att.libraryID}-${att.key}.json`;
 }
+
+/** The cached analysis, if it is current for the present settings. */
+export async function cachedAnalysis(
+  att: Zotero.Item,
+): Promise<ConceptSet | undefined> {
+  const cached = await readJSON<ConceptSet>("papers", cacheName(att));
+  return cached?.version === VERSION && cached.settingsKey === settingsKey()
+    ? cached
+    : undefined;
+}
+
+export const ANALYSIS_VERSION = VERSION;
 
 export function analyzeAttachment(
   att: Zotero.Item,
@@ -123,11 +138,19 @@ export function analyzeAttachment(
   const p = (async () => {
     const sk = settingsKey();
     if (!force) {
-      const cached = await readJSON<ConceptSet>("papers", cacheName(att));
-      if (cached?.version === VERSION && cached.settingsKey === sk)
-        return cached;
+      const cached = await cachedAnalysis(att);
+      if (cached) return cached;
     }
     const raw = await att.attachmentText;
+    // Not indexed yet: nothing to analyse, and nothing to cache.
+    if (!raw?.trim())
+      return {
+        version: VERSION,
+        settingsKey: sk,
+        filteredBy: "rules",
+        concepts: [],
+        noText: true,
+      } satisfies ConceptSet;
     const text = cleanDocumentText(raw);
     const cands = proposeCandidates(text);
     const title = att.parentItem?.getField("title") ?? att.getField("title");
@@ -166,7 +189,10 @@ export function analyzeAttachment(
       })),
     };
     // Don't cache a fallback result: retry the model next time.
-    if (!error) await writeJSON(set, "papers", cacheName(att));
+    if (!error) {
+      await writeJSON(set, "papers", cacheName(att));
+      updateIndex(att, set);
+    }
     return set;
   })().finally(() => inflight.delete(key));
   inflight.set(key, p);
