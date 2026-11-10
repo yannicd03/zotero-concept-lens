@@ -23,6 +23,8 @@ export default defineConfig({
       description: pkg.description,
       homepage: pkg.homepage,
       buildVersion: pkg.version,
+      // Shown in the settings footer; filled in by the scaffold.
+      buildTime: "{{buildTime}}",
     },
     prefs: { prefix: prefsPrefix },
     esbuildOptions: [
