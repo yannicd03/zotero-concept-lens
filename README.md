@@ -106,8 +106,10 @@ and both have a **Test connection** button.
    connection**. Endpoint and model are pre-filled.
 2. **LLM fallback** (optional). It writes a short definition when no paper
    in your library defines the concept. Choose a provider (DeepSeek,
-   Anthropic or a custom endpoint), paste that provider's API key, pick a
-   model, and click **Test connection**.
+   Anthropic, OpenRouter or a custom endpoint), paste that provider's API
+   key, pick a model, and click **Test connection**. **OpenRouter** needs no
+   extra key: it uses the decision model's OpenRouter key unless you enter
+   a different one.
 3. **Full-text index.** "Other papers in your library" comes from Zotero's
    full-text index. Zotero indexes new PDFs by itself. If older papers are
    missing, rebuild the index under **Zotero Settings → Search**.
@@ -120,12 +122,12 @@ result is cached, so later visits are instant.
 
 **Zotero Settings → Concept Lens:**
 
-| Setting        | What it does                                                                                                                                                                                        |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Marking        | Switch the concept underlines and the citation hover on or off.                                                                                                                                     |
-| Hover card     | Show or hide the card's sections and order those below the definition. Number of other papers shown (default 5).                                                                                    |
-| Decision model | Format (`systemone` or an OpenAI-compatible chat model), endpoint, model, API key, link threshold. Default: Jev (`typesafe/jev-1.14`) via OpenRouter's `/systemone` route.                          |
-| LLM fallback   | Provider: **DeepSeek** (Flash or Pro), **Anthropic** (Claude Haiku, Sonnet or Opus) or a **custom** endpoint (OpenAI-compatible or Anthropic Messages format). Each provider keeps its own API key. |
+| Setting        | What it does                                                                                                                                                                                                                                                                                                                              |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Marking        | Switch the concept underlines and the citation hover on or off.                                                                                                                                                                                                                                                                           |
+| Hover card     | Show or hide the card's sections and order those below the definition. Number of other papers shown (default 5).                                                                                                                                                                                                                          |
+| Decision model | Format (`systemone` or an OpenAI-compatible chat model), endpoint, model, API key, link threshold. Default: Jev (`typesafe/jev-1.14`) via OpenRouter's `/systemone` route.                                                                                                                                                                |
+| LLM fallback   | Provider: **DeepSeek** (Flash or Pro), **Anthropic** (Claude Haiku, Sonnet or Opus), **OpenRouter** (DeepSeek Flash, Claude Haiku or Sonnet, Gemini Flash, GPT-6 Luna) or a **custom** endpoint (OpenAI-compatible or Anthropic Messages format). Each provider keeps its own API key; OpenRouter falls back to the decision model's key. |
 
 ## Privacy
 

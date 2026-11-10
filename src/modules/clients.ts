@@ -9,8 +9,8 @@ import { getSecret } from "../utils/secrets";
 import {
   LlmProvider,
   currentProvider,
+  keyFor,
   providerSettings,
-  secretFor,
 } from "./llmProviders";
 
 export class ApiError extends Error {
@@ -183,7 +183,7 @@ export interface LlmSettings {
 export function llmSettings(
   provider: LlmProvider = currentProvider(),
 ): LlmSettings {
-  return { ...providerSettings(provider), key: getSecret(secretFor(provider)) };
+  return { ...providerSettings(provider), key: keyFor(provider) };
 }
 
 function chatURL(endpoint: string, format: LlmSettings["format"]): string {
@@ -277,6 +277,8 @@ async function chatCompleteOnce(
  * Models that think before answering spend part of max_tokens on reasoning,
  * so a short answer still needs a generous limit. DeepSeek's API thinks by
  * default (api-docs.deepseek.com/guides/thinking_mode), in both formats.
+ * Through OpenRouter, reasoning tokens also count against max_tokens, and
+ * most of its current models reason.
  */
 export function tokenLimit(
   s: Pick<LlmSettings, "model">,
@@ -286,6 +288,7 @@ export function tokenLimit(
   const host = hostOf(url);
   const thinks =
     host === "api.deepseek.com" ||
+    host === "openrouter.ai" ||
     (host === "api.anthropic.com" && CLAUDE_WITH_EFFORT.test(s.model));
   return thinks ? Math.max(maxTokens, THINKING_TOKENS) : maxTokens;
 }

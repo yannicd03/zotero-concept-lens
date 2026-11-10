@@ -83,6 +83,10 @@
         <menupopup>
           <menuitem value="deepseek" data-l10n-id="pref-provider-deepseek" />
           <menuitem value="anthropic" data-l10n-id="pref-provider-anthropic" />
+          <menuitem
+            value="openrouter"
+            data-l10n-id="pref-provider-openrouter"
+          />
           <menuitem value="custom" data-l10n-id="pref-provider-custom" />
         </menupopup>
       </menulist>
@@ -107,7 +111,7 @@
       <html:input
         type="text"
         preference="llm.endpoint"
-        placeholder="https://openrouter.ai/api/v1"
+        placeholder="https://api.example.com/v1"
         data-llm="custom"
       />
       <html:label data-l10n-id="pref-model" data-llm="custom"></html:label>

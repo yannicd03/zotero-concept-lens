@@ -19,13 +19,15 @@ pref("decision.model", "typesafe/jev-1.14");
 pref("decision.threshold", 80);
 
 // LLM fallback: writes a short definition when no paper in the library
-// defines the concept. provider: "deepseek" or "anthropic" (preset endpoint,
-// model picked from a list) or "custom" (the llm.format/endpoint/model below;
-// format: "openai" (chat completions) or "anthropic")
+// defines the concept. provider: "deepseek", "anthropic" or "openrouter"
+// (preset endpoint, model picked from a list; OpenRouter uses the decision
+// model's key unless it has its own) or "custom" (the llm.format/endpoint/
+// model below; format: "openai" (chat completions) or "anthropic")
 pref("llm.enabled", true);
 pref("llm.provider", "deepseek");
 pref("llm.deepseekModel", "deepseek-flash");
 pref("llm.anthropicModel", "claude-haiku-5-5");
+pref("llm.openrouterModel", "deepseek/deepseek-v4.1-flash");
 pref("llm.format", "openai");
 pref("llm.endpoint", "");
 pref("llm.model", "");

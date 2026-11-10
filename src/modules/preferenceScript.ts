@@ -16,6 +16,7 @@ import {
   PRESETS,
   PROVIDERS,
   currentProvider,
+  inheritedKey,
   modelFor,
   secretFor,
 } from "./llmProviders";
@@ -27,8 +28,9 @@ export async function registerPrefsScripts(win: Window) {
   renderSectionOrder(doc);
   bindNumber(doc, `${ref}-related-limit`, "card.relatedLimit", 0, 20);
   bindNumber(doc, `${ref}-decision-threshold`, "decision.threshold", 0, 100);
-  bindSecret(doc, `${ref}-decision-key`, "decision");
-  bindLlmProvider(doc);
+  const refreshLlm = bindLlmProvider(doc);
+  // OpenRouter may use the decision key, so its key field follows it.
+  bindSecret(doc, `${ref}-decision-key`, "decision", refreshLlm);
   doc
     .getElementById(`${ref}-decision-test`)
     ?.addEventListener("command", () => testDecision(doc));
@@ -118,30 +120,37 @@ function bindNumber(
   });
 }
 
-function bindSecret(doc: Document, id: string, name: SecretName) {
+function bindSecret(
+  doc: Document,
+  id: string,
+  name: SecretName,
+  onSaved?: () => void,
+) {
   const input = doc.getElementById(id) as HTMLInputElement | null;
   if (!input) return;
   input.value = getSecret(name);
   input.addEventListener("change", () =>
-    setSecret(name, input.value.trim()).catch((e) =>
-      log("setSecret failed", e),
-    ),
+    setSecret(name, input.value.trim())
+      .then(() => onSaved?.())
+      .catch((e) => log("setSecret failed", e)),
   );
 }
 
 // --- LLM provider ------------------------------------------------------------
 
 /**
- * Provider dropdown: DeepSeek/Anthropic show a model list, "custom" shows
- * the free-form format/endpoint/model fields. The key field holds the
- * selected provider's key.
+ * Provider dropdown: presets show a model list, "custom" shows the
+ * free-form format/endpoint/model fields. The key field holds the selected
+ * provider's own key; when it is empty and the provider inherits the
+ * decision key (OpenRouter), the placeholder says so. Returns a function
+ * that redraws the section.
  */
-function bindLlmProvider(doc: Document) {
+function bindLlmProvider(doc: Document): () => void {
   const providerList = doc.getElementById(`${ref}-llm-provider`) as any;
   const modelList = doc.getElementById(`${ref}-llm-preset-model`) as any;
   const keyInput = doc.getElementById(`${ref}-llm-key`) as
     HTMLInputElement | undefined;
-  if (!providerList || !modelList || !keyInput) return;
+  if (!providerList || !modelList || !keyInput) return () => {};
 
   const render = () => {
     const provider = currentProvider();
@@ -163,6 +172,9 @@ function bindLlmProvider(doc: Document) {
       modelList.value = modelFor(provider);
     }
     keyInput.value = getSecret(secretFor(provider));
+    keyInput.placeholder = inheritedKey(provider)
+      ? "Using the decision model's key (enter one to override)"
+      : "";
     status(doc, "llm", true, "");
   };
 
@@ -176,11 +188,12 @@ function bindLlmProvider(doc: Document) {
     if (p !== "custom") setPref(PRESETS[p].modelPref, modelList.value);
   });
   keyInput.addEventListener("change", () =>
-    setSecret(secretFor(currentProvider()), keyInput.value.trim()).catch((e) =>
-      log("setSecret failed", e),
-    ),
+    setSecret(secretFor(currentProvider()), keyInput.value.trim())
+      .then(render)
+      .catch((e) => log("setSecret failed", e)),
   );
   render();
+  return render;
 }
 
 // --- connection tests ------------------------------------------------------

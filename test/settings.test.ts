@@ -62,4 +62,38 @@ describe("settings", function () {
       await setSecret("llm", before);
     }
   });
+
+  it("lets OpenRouter use the decision key unless it has its own", async function () {
+    const { getSecret, setSecret } = plugin().api.secrets;
+    const { keyFor, inheritedKey } = plugin().api.llmProviders;
+    const { llmSettings } = plugin().api.clients;
+    const endpoint = pref("decision.endpoint");
+    const savedEndpoint = Zotero.Prefs.get(endpoint, true);
+    const savedDecision = getSecret("decision");
+    const savedOwn = getSecret("llm-openrouter");
+    try {
+      Zotero.Prefs.set(
+        endpoint,
+        "https://openrouter.ai/api/v1/systemone",
+        true,
+      );
+      await setSecret("decision", "sk-or-decision");
+      await setSecret("llm-openrouter", "");
+      assert.equal(keyFor("openrouter"), "sk-or-decision");
+      assert.equal(llmSettings("openrouter").key, "sk-or-decision");
+      // other presets never borrow it
+      assert.equal(inheritedKey("deepseek"), "");
+      // an own key overrides the decision key
+      await setSecret("llm-openrouter", "sk-or-own");
+      assert.equal(keyFor("openrouter"), "sk-or-own");
+      // a decision model elsewhere has a key OpenRouter can't use
+      await setSecret("llm-openrouter", "");
+      Zotero.Prefs.set(endpoint, "https://api.example.com/systemone", true);
+      assert.equal(keyFor("openrouter"), "");
+    } finally {
+      Zotero.Prefs.set(endpoint, savedEndpoint, true);
+      await setSecret("decision", savedDecision);
+      await setSecret("llm-openrouter", savedOwn);
+    }
+  });
 });

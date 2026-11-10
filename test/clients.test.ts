@@ -22,6 +22,15 @@ describe("clients", function () {
       tokenLimit({ model: "claude-haiku-5-5" }, anthropic, 300),
       8192,
     );
+    // OpenRouter counts reasoning tokens against max_tokens
+    assert.equal(
+      tokenLimit(
+        { model: "deepseek/deepseek-v4.1-flash" },
+        "https://openrouter.ai/api/v1/chat/completions",
+        300,
+      ),
+      8192,
+    );
     // Older Claude models only think when asked to
     assert.equal(
       tokenLimit({ model: "claude-haiku-4-5" }, anthropic, 300),
@@ -60,7 +69,19 @@ describe("clients", function () {
       ),
       "anthropic",
     );
+    assert.equal(
+      detectProvider(
+        "openai",
+        "https://openrouter.ai/api/v1",
+        "anthropic/claude-haiku-5.5",
+      ),
+      "openrouter",
+    );
     // a model outside the preset list, or a different format, stays custom
+    assert.equal(
+      detectProvider("openai", "https://openrouter.ai/api/v1", "some/model"),
+      "custom",
+    );
     assert.equal(
       detectProvider("openai", "https://api.deepseek.com", "deepseek-chat"),
       "custom",
@@ -84,6 +105,11 @@ describe("clients", function () {
       "deepseek-flash",
     );
     assert.isUndefined(presetModel("anthropic", "deepseek-flash"));
+    assert.equal(
+      presetModel("openrouter", "google/gemini-3.8-flash"),
+      "google/gemini-3.8-flash",
+    );
+    assert.isUndefined(presetModel("openrouter", "claude-haiku-5-5"));
   });
 
   it("strips leaked reasoning and safety tags from completions", function () {

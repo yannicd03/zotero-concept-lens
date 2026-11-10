@@ -26,6 +26,7 @@ export type FluentMessageId =
   | 'pref-provider-anthropic'
   | 'pref-provider-custom'
   | 'pref-provider-deepseek'
+  | 'pref-provider-openrouter'
   | 'pref-related-limit'
   | 'pref-test'
   | 'pref-threshold';

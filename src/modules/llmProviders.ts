@@ -1,13 +1,15 @@
 /**
- * LLM fallback providers. DeepSeek and Anthropic are presets (fixed endpoint
- * and format, a short model list, their own API key); "custom" uses the
- * free-form llm.format / llm.endpoint / llm.model prefs.
+ * LLM fallback providers. DeepSeek, Anthropic and OpenRouter are presets
+ * (fixed endpoint and format, a short model list, their own API key);
+ * "custom" uses the free-form llm.format / llm.endpoint / llm.model prefs.
+ * OpenRouter falls back to the decision model's key when the decision model
+ * runs on OpenRouter too.
  */
 import { config } from "../../package.json";
 import { getPref, setPref } from "../utils/prefs";
 import { getSecret, setSecret, SecretName } from "../utils/secrets";
 
-export type LlmProvider = "deepseek" | "anthropic" | "custom";
+export type LlmProvider = "deepseek" | "anthropic" | "openrouter" | "custom";
 export type LlmFormat = "openai" | "anthropic";
 
 export interface PresetModel {
@@ -21,15 +23,17 @@ export interface Preset {
   endpoint: string;
   host: string;
   secret: SecretName;
-  modelPref: "llm.deepseekModel" | "llm.anthropicModel";
+  modelPref: "llm.deepseekModel" | "llm.anthropicModel" | "llm.openrouterModel";
   /** First entry is the default */
   models: PresetModel[];
   /** Retired or alternative names that map onto a preset model */
   aliases?: Record<string, string>;
+  /** Without its own key, use the decision model's key if that runs here. */
+  sharesDecisionKey?: boolean;
 }
 
-// Model IDs: api-docs.deepseek.com/quick_start/pricing (2026-11-10) and
-// Anthropic's current model list.
+// Model IDs: api-docs.deepseek.com/quick_start/pricing, Anthropic's current
+// model list, and openrouter.ai/api/v1/models (all checked 2026-11-10).
 export const PRESETS: Record<Exclude<LlmProvider, "custom">, Preset> = {
   deepseek: {
     label: "DeepSeek",
@@ -57,9 +61,30 @@ export const PRESETS: Record<Exclude<LlmProvider, "custom">, Preset> = {
       { id: "claude-opus-5-5", label: "Claude Opus" },
     ],
   },
+  openrouter: {
+    label: "OpenRouter",
+    format: "openai",
+    endpoint: "https://openrouter.ai/api/v1",
+    host: "openrouter.ai",
+    secret: "llm-openrouter",
+    modelPref: "llm.openrouterModel",
+    models: [
+      { id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek Flash" },
+      { id: "anthropic/claude-haiku-5.5", label: "Claude Haiku" },
+      { id: "anthropic/claude-sonnet-5.5", label: "Claude Sonnet" },
+      { id: "google/gemini-3.8-flash", label: "Gemini Flash" },
+      { id: "openai/gpt-6-luna", label: "GPT-6 Luna" },
+    ],
+    sharesDecisionKey: true,
+  },
 };
 
-export const PROVIDERS: LlmProvider[] = ["deepseek", "anthropic", "custom"];
+export const PROVIDERS: LlmProvider[] = [
+  "deepseek",
+  "anthropic",
+  "openrouter",
+  "custom",
+];
 
 export function currentProvider(): LlmProvider {
   const p = getPref("llm.provider") as LlmProvider;
@@ -78,6 +103,21 @@ export function presetModel(
 
 export function secretFor(provider: LlmProvider): SecretName {
   return provider === "custom" ? "llm" : PRESETS[provider].secret;
+}
+
+/**
+ * The decision model's key, for a preset that shares it, when the decision
+ * endpoint is on the same host; else "".
+ */
+export function inheritedKey(provider: LlmProvider): string {
+  if (provider === "custom" || !PRESETS[provider].sharesDecisionKey) return "";
+  const decisionHost = hostOf(getPref("decision.endpoint") || "");
+  return decisionHost === PRESETS[provider].host ? getSecret("decision") : "";
+}
+
+/** The provider's own key, else the key it inherits. */
+export function keyFor(provider: LlmProvider): string {
+  return getSecret(secretFor(provider)) || inheritedKey(provider);
 }
 
 export function modelFor(provider: Exclude<LlmProvider, "custom">): string {

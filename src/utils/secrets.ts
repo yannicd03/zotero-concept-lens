@@ -6,7 +6,8 @@ import { config } from "../../package.json";
 import { log } from "./log";
 
 /** "llm" is the custom LLM endpoint's key; presets have their own. */
-export type SecretName = "decision" | "llm" | "llm-deepseek" | "llm-anthropic";
+export type SecretName =
+  "decision" | "llm" | "llm-deepseek" | "llm-anthropic" | "llm-openrouter";
 
 const ORIGIN = `chrome://${config.addonRef}`;
 const realm = (name: SecretName) => `${config.addonName} ${name} API key`;
