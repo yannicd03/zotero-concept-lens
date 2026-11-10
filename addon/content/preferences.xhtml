@@ -1,0 +1,133 @@
+<linkset>
+  <html:link rel="localization" href="__addonRef__-preferences.ftl" />
+  <html:link
+    rel="stylesheet"
+    href="chrome://__addonRef__/content/preferences.css"
+  />
+</linkset>
+<vbox
+  id="__addonRef__-prefs"
+  onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
+>
+  <groupbox>
+    <label><html:h2 data-l10n-id="pref-marking-title"></html:h2></label>
+    <checkbox preference="highlight.enabled" data-l10n-id="pref-highlight" />
+    <checkbox preference="citation.enabled" data-l10n-id="pref-citation" />
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="pref-card-title"></html:h2></label>
+    <html:p class="__addonRef__-hint" data-l10n-id="pref-card-hint"></html:p>
+    <html:div id="__addonRef__-section-order"></html:div>
+    <hbox align="center">
+      <html:label
+        for="__addonRef__-related-limit"
+        data-l10n-id="pref-related-limit"
+      ></html:label>
+      <html:input
+        type="number"
+        min="0"
+        max="20"
+        id="__addonRef__-related-limit"
+        class="__addonRef__-small"
+      />
+    </hbox>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="pref-decision-title"></html:h2></label>
+    <html:p
+      class="__addonRef__-hint"
+      data-l10n-id="pref-decision-hint"
+    ></html:p>
+    <html:div class="__addonRef__-grid">
+      <html:label data-l10n-id="pref-format"></html:label>
+      <menulist preference="decision.format" native="true">
+        <menupopup>
+          <menuitem value="systemone" data-l10n-id="pref-format-systemone" />
+          <menuitem value="chat" data-l10n-id="pref-format-chat" />
+        </menupopup>
+      </menulist>
+      <html:label data-l10n-id="pref-endpoint"></html:label>
+      <html:input type="text" preference="decision.endpoint" />
+      <html:label data-l10n-id="pref-model"></html:label>
+      <html:input type="text" preference="decision.model" />
+      <html:label data-l10n-id="pref-key"></html:label>
+      <html:input
+        type="password"
+        id="__addonRef__-decision-key"
+        autocomplete="off"
+      />
+      <html:label data-l10n-id="pref-threshold"></html:label>
+      <html:input
+        type="number"
+        min="0"
+        max="100"
+        id="__addonRef__-decision-threshold"
+        class="__addonRef__-small"
+      />
+    </html:div>
+    <hbox align="center">
+      <button id="__addonRef__-decision-test" data-l10n-id="pref-test" />
+      <html:span id="__addonRef__-decision-status"></html:span>
+    </hbox>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="pref-llm-title"></html:h2></label>
+    <html:p class="__addonRef__-hint" data-l10n-id="pref-llm-hint"></html:p>
+    <checkbox preference="llm.enabled" data-l10n-id="pref-llm-enabled" />
+    <html:div class="__addonRef__-grid">
+      <html:label data-l10n-id="pref-provider"></html:label>
+      <menulist id="__addonRef__-llm-provider" native="true">
+        <menupopup>
+          <menuitem value="deepseek" data-l10n-id="pref-provider-deepseek" />
+          <menuitem value="anthropic" data-l10n-id="pref-provider-anthropic" />
+          <menuitem value="custom" data-l10n-id="pref-provider-custom" />
+        </menupopup>
+      </menulist>
+      <!-- preset providers: pick a model from a list -->
+      <html:label data-l10n-id="pref-model" data-llm="preset"></html:label>
+      <menulist
+        id="__addonRef__-llm-preset-model"
+        native="true"
+        data-llm="preset"
+      >
+        <menupopup />
+      </menulist>
+      <!-- custom endpoint: free-form -->
+      <html:label data-l10n-id="pref-format" data-llm="custom"></html:label>
+      <menulist preference="llm.format" native="true" data-llm="custom">
+        <menupopup>
+          <menuitem value="openai" data-l10n-id="pref-format-openai" />
+          <menuitem value="anthropic" data-l10n-id="pref-format-anthropic" />
+        </menupopup>
+      </menulist>
+      <html:label data-l10n-id="pref-endpoint" data-llm="custom"></html:label>
+      <html:input
+        type="text"
+        preference="llm.endpoint"
+        placeholder="https://openrouter.ai/api/v1"
+        data-llm="custom"
+      />
+      <html:label data-l10n-id="pref-model" data-llm="custom"></html:label>
+      <html:input type="text" preference="llm.model" data-llm="custom" />
+      <html:label data-l10n-id="pref-key"></html:label>
+      <html:input
+        type="password"
+        id="__addonRef__-llm-key"
+        autocomplete="off"
+      />
+    </html:div>
+    <hbox align="center">
+      <button id="__addonRef__-llm-test" data-l10n-id="pref-test" />
+      <html:span id="__addonRef__-llm-status"></html:span>
+    </hbox>
+  </groupbox>
+
+  <html:label
+    class="__addonRef__-hint"
+    data-l10n-id="pref-help"
+    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
+  ></html:label>
+</vbox>
