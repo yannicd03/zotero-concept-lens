@@ -1,0 +1,62 @@
+{
+  "name": "zotero-concept-lens",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Marks definitions and recurring concepts in the PDF reader with hover previews, and shows your library copy when hovering citations.",
+  "config": {
+    "addonName": "Concept Lens",
+    "addonID": "conceptlens@zotero-plugin.local",
+    "addonRef": "conceptlens",
+    "addonInstance": "ConceptLens",
+    "prefsPrefix": "extensions.zotero.conceptlens"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yannicd03/zotero-concept-lens.git"
+  },
+  "author": "Yannic",
+  "homepage": "https://github.com/yannicd03/zotero-concept-lens",
+  "license": "MIT",
+  "scripts": {
+    "start": "zotero-plugin serve",
+    "build": "zotero-plugin build && tsc --noEmit",
+    "lint:check": "prettier --check . && eslint .",
+    "lint:fix": "prettier --write . && eslint . --fix",
+    "test": "ZOTERO_PLUGIN_KILL_COMMAND=\"pkill -9 -f -- [.]scaffold/test/profile\" zotero-plugin test",
+    "dev:settings": "node scripts/dev-settings.mjs",
+    "dev:eval": "node scripts/zotero-eval.mjs"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^26.6.6",
+    "@zotero-plugin/eslint-config": "^0.6.10",
+    "chai": "^6.3.0",
+    "eslint": "^10.14.0",
+    "mocha": "^12.0.3",
+    "prettier": "^3.9.10",
+    "typescript": "^7.0.2",
+    "zotero-plugin-scaffold": "^0.9.3",
+    "zotero-types": "^4.1.3"
+  },
+  "prettier": {
+    "printWidth": 80,
+    "tabWidth": 2,
+    "endOfLine": "lf",
+    "overrides": [
+      {
+        "files": [
+          "*.xhtml"
+        ],
+        "options": {
+          "htmlWhitespaceSensitivity": "css"
+        }
+      }
+    ]
+  },
+  "overrides": {
+    "typescript-eslint": {
+      "typescript": "6.0.3"
+    }
+  }
+}
