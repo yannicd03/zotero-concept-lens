@@ -75,3 +75,40 @@
 .conceptlens-grid [hidden] {
   display: none !important;
 }
+
+.conceptlens-usage-table {
+  border-collapse: collapse;
+  margin-block: 4px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.conceptlens-usage-table th,
+.conceptlens-usage-table td {
+  padding: 3px 10px 3px 0;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.conceptlens-usage-table th {
+  font-weight: 600;
+  color: var(--fill-secondary);
+  border-bottom: 1px solid var(--fill-quinary);
+}
+
+.conceptlens-usage-table th:first-child,
+.conceptlens-usage-table td:first-child {
+  text-align: start;
+}
+
+.conceptlens-usage-table td.conceptlens-usage-cost {
+  font-weight: 600;
+}
+
+.conceptlens-usage-sub {
+  margin-block: 8px 0;
+  font-weight: 600;
+}
+
+#conceptlens-usage-account-list {
+  margin-block-start: 6px;
+}

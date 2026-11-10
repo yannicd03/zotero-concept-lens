@@ -10,7 +10,14 @@ import {
   sectionOrder,
 } from "./sections";
 import { log } from "../utils/log";
-import { chatComplete, decide, decisionSettings, llmSettings } from "./clients";
+import {
+  accountInfo,
+  chatComplete,
+  decide,
+  decisionSettings,
+  llmSettings,
+} from "./clients";
+import { ModelRow, Totals, reset as resetUsage, summary } from "./usage";
 import {
   LlmProvider,
   PRESETS,
@@ -31,6 +38,7 @@ export async function registerPrefsScripts(win: Window) {
   const refreshLlm = bindLlmProvider(doc);
   // OpenRouter may use the decision key, so its key field follows it.
   bindSecret(doc, `${ref}-decision-key`, "decision", refreshLlm);
+  bindUsage(win);
   doc
     .getElementById(`${ref}-decision-test`)
     ?.addEventListener("command", () => testDecision(doc));
@@ -194,6 +202,141 @@ function bindLlmProvider(doc: Document): () => void {
   );
   render();
   return render;
+}
+
+// --- spending ----------------------------------------------------------------
+
+const HTML = "http://www.w3.org/1999/xhtml";
+
+function el(doc: Document, tag: string, text?: string, cls?: string) {
+  const e = doc.createElementNS(HTML, tag) as HTMLElement;
+  if (text !== undefined) e.textContent = text;
+  if (cls) e.className = cls;
+  return e;
+}
+
+export function formatCost(
+  t: Pick<Totals, "cost" | "estimated" | "unpriced" | "requests">,
+) {
+  if (!t.requests) return "–";
+  if (t.unpriced === t.requests) return "unknown";
+  const n = t.cost;
+  // Two significant digits below a cent: $0.000012, $0.0042
+  const digits = n >= 0.01 ? 2 : Math.min(8, Math.ceil(-Math.log10(n)) + 1);
+  const money = n === 0 ? "$0" : `$${n.toFixed(digits)}`;
+  const approx = t.estimated ? "≈ " : "";
+  const unknown = t.unpriced ? ` + ${t.unpriced} unpriced` : "";
+  return approx + money + unknown;
+}
+
+const tokens = (n: number) =>
+  n >= 1e6
+    ? `${(n / 1e6).toFixed(2)}M`
+    : n >= 1e3
+      ? `${(n / 1e3).toFixed(1)}k`
+      : String(n);
+
+function table(doc: Document, head: string[], rows: string[][]) {
+  const t = el(doc, "table", undefined, `${ref}-usage-table`);
+  const tr = el(doc, "tr");
+  for (const h of head) tr.append(el(doc, "th", h));
+  t.append(tr);
+  for (const r of rows) {
+    const row = el(doc, "tr");
+    r.forEach((c, i) =>
+      row.append(
+        el(doc, "td", c, i === r.length - 1 ? `${ref}-usage-cost` : undefined),
+      ),
+    );
+    t.append(row);
+  }
+  return t;
+}
+
+function modelLabel(r: ModelRow) {
+  const what = r.service === "decision" ? "decision" : "LLM";
+  return `${r.model || "(no model)"} · ${what}, ${r.host || "?"}`;
+}
+
+async function renderUsage(doc: Document) {
+  const box = doc.getElementById(`${ref}-usage`);
+  if (!box) return;
+  const s = await summary();
+  const row = (label: string, t: Totals) => [
+    label,
+    String(t.requests),
+    tokens(t.inputTokens),
+    tokens(t.outputTokens),
+    formatCost(t),
+  ];
+  const parts: HTMLElement[] = [
+    table(
+      doc,
+      ["", "Requests", "Tokens in", "Tokens out", "Cost"],
+      [
+        row("Today", s.today),
+        row("This month", s.month),
+        row(s.since ? `Since ${s.since}` : "All time", s.all),
+      ],
+    ),
+  ];
+  if (s.byModel.length) {
+    parts.push(el(doc, "div", "This month by model", `${ref}-usage-sub`));
+    parts.push(
+      table(
+        doc,
+        ["Model", "Requests", "Cost"],
+        s.byModel.map((r) => [
+          modelLabel(r),
+          String(r.requests),
+          formatCost(r),
+        ]),
+      ),
+    );
+  }
+  box.replaceChildren(...parts);
+}
+
+function bindUsage(win: Window) {
+  const doc = win.document;
+  renderUsage(doc).catch((e) => log("usage view failed", e));
+  doc
+    .getElementById(`${ref}-usage-refresh`)
+    ?.addEventListener("command", () => renderUsage(doc));
+  doc
+    .getElementById(`${ref}-usage-reset`)
+    ?.addEventListener("command", async () => {
+      const ok = Services.prompt.confirm(
+        win as any,
+        "Reset spending",
+        "Clear all recorded requests and costs? Your provider accounts are not affected.",
+      );
+      if (!ok) return;
+      await resetUsage();
+      await renderUsage(doc);
+    });
+  doc
+    .getElementById(`${ref}-usage-accounts`)
+    ?.addEventListener("command", async () => {
+      const list = doc.getElementById(`${ref}-usage-account-list`);
+      if (!list) return;
+      list.replaceChildren(el(doc, "div", "Asking the providers…"));
+      const infos = await accountInfo().catch((e) => [
+        { name: "Error", ok: false, text: String(e?.message ?? e) },
+      ]);
+      list.replaceChildren(
+        ...(infos.length
+          ? infos.map((i) =>
+              el(
+                doc,
+                "div",
+                `${i.name}: ${i.text}`,
+                i.ok ? `${ref}-ok` : `${ref}-err`,
+              ),
+            )
+          : [el(doc, "div", "No OpenRouter or DeepSeek key configured.")]),
+      );
+    });
 }
 
 // --- connection tests ------------------------------------------------------

@@ -6,6 +6,7 @@ import {
   startReaderIntegration,
   stopReaderIntegration,
 } from "./modules/reader/manager";
+import { flush as flushUsage } from "./modules/usage";
 import { state } from "./state";
 import { log } from "./utils/log";
 
@@ -32,6 +33,7 @@ async function onStartup() {
 
 function onShutdown() {
   stopReaderIntegration();
+  flushUsage().catch((e) => log("saving usage failed", e));
   state.alive = false;
   delete (Zotero as unknown as Record<string, unknown>)[config.addonInstance];
 }

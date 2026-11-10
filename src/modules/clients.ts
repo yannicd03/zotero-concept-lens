@@ -8,10 +8,12 @@ import { getPref } from "../utils/prefs";
 import { getSecret } from "../utils/secrets";
 import {
   LlmProvider,
+  PRESETS,
   currentProvider,
   keyFor,
   providerSettings,
 } from "./llmProviders";
+import { record, Service } from "./usage";
 
 export class ApiError extends Error {
   constructor(
@@ -124,6 +126,7 @@ export async function decide(
     { model: s.model, state, questions },
     authHeader(s.key),
   );
+  void record("decision", s.endpoint, s.model, data?.usage);
   const answers = data?.answers ?? data?.result?.answers;
   if (!answers) throw new ApiError("Response has no answers");
   const missing = Object.keys(questions).filter((k) => !(k in answers));
@@ -155,6 +158,8 @@ async function decideViaChat(
     },
     "Answer every question about the given text. Reply with one JSON object only, no prose.",
     `Text:\n${state}\n\nQuestions (JSON keys):\n${spec.join("\n")}`,
+    300,
+    "decision",
   );
   const json = JSON.parse(
     text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1),
@@ -228,11 +233,13 @@ export async function chatComplete(
   system: string,
   user: string,
   maxTokens = 300,
+  /** Which spending line the request counts towards */
+  service: Service = "llm",
 ): Promise<string> {
   const paused = llmPause(s);
   if (paused) throw new ApiError(paused.reason, 429);
   try {
-    return await chatCompleteOnce(s, system, user, maxTokens);
+    return await chatCompleteOnce(s, system, user, maxTokens, service);
   } catch (e) {
     if (e instanceof ApiError) pauseFromError(e, s);
     throw e;
@@ -244,11 +251,12 @@ async function chatCompleteOnce(
   system: string,
   user: string,
   maxTokens: number,
+  service: Service,
 ): Promise<string> {
   if (!s.model) throw new ApiError("No model configured");
   const url = chatURL(s.endpoint, s.format);
   if (s.format === "anthropic")
-    return anthropicMessages(s, url, system, user, maxTokens);
+    return anthropicMessages(s, url, system, user, maxTokens, service);
   const data = await postJSON(
     url,
     {
@@ -262,6 +270,7 @@ async function chatCompleteOnce(
     authHeader(s.key),
     LLM_TIMEOUT,
   );
+  void record(service, url, s.model, data?.usage);
   const choice = data?.choices?.[0];
   const text = choice?.message?.content;
   if (typeof text !== "string" || !text.trim())
@@ -320,6 +329,7 @@ async function anthropicMessages(
   system: string,
   user: string,
   maxTokens: number,
+  service: Service,
 ): Promise<string> {
   const official = hostOf(url) === "api.anthropic.com";
   const effort = official && CLAUDE_WITH_EFFORT.test(s.model);
@@ -340,6 +350,7 @@ async function anthropicMessages(
     },
     LLM_TIMEOUT,
   );
+  void record(service, url, s.model, data?.usage);
   if (data?.stop_reason === "refusal")
     throw new ApiError(
       `The model declined${data?.stop_details?.category ? ` (${data.stop_details.category})` : ""}`,
@@ -358,7 +369,7 @@ async function anthropicMessages(
   return cleanCompletion(text);
 }
 
-/** Hosted models are slow at times (KIT: 1-47 s observed). */
+/** Hosted models are slow at times (1-47 s observed on one gateway). */
 const LLM_TIMEOUT = 180_000;
 
 /** Drop reasoning/safety tags some hosted models leak into the content. */
@@ -384,4 +395,71 @@ export async function llmDefinition(
       "matters in this paper. Plain text, no preamble.",
     `Concept: ${concept}\n\n${context.slice(0, 4000)}`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Account balances (fetched on demand from the settings pane)
+
+export interface AccountInfo {
+  name: string;
+  /** e.g. "$0.0041 today, $0.0041 this month; $9.99 of $10 left" */
+  text: string;
+  ok: boolean;
+}
+
+async function getJSON(url: string, key: string): Promise<any> {
+  const xhr = await Zotero.HTTP.request("GET", url, {
+    headers: authHeader(key),
+    responseType: "json",
+    timeout: 20_000,
+    successCodes: false,
+  });
+  if (xhr.status < 200 || xhr.status >= 300)
+    throw new ApiError(`HTTP ${xhr.status}`, xhr.status);
+  return xhr.response;
+}
+
+const usd = (n: unknown) =>
+  typeof n === "number" ? `$${n < 1 ? n.toFixed(4) : n.toFixed(2)}` : "?";
+
+/**
+ * What the providers themselves report: spend and limit of the OpenRouter
+ * key (openrouter.ai/api/v1/key) and the DeepSeek balance
+ * (api.deepseek.com/user/balance). Only providers with a key are asked.
+ */
+export async function accountInfo(): Promise<AccountInfo[]> {
+  const out: AccountInfo[] = [];
+  const orKey = keyFor("openrouter");
+  if (orKey)
+    try {
+      const d = (await getJSON("https://openrouter.ai/api/v1/key", orKey))
+        ?.data;
+      const left =
+        typeof d?.limit === "number"
+          ? `; ${usd(d.limit_remaining)} of ${usd(d.limit)} left`
+          : "";
+      out.push({
+        name: "OpenRouter",
+        ok: true,
+        text: `${usd(d?.usage_daily)} today, ${usd(d?.usage_monthly)} this month, ${usd(d?.usage)} in total${left}`,
+      });
+    } catch (e: any) {
+      out.push({
+        name: "OpenRouter",
+        ok: false,
+        text: String(e?.message ?? e),
+      });
+    }
+  const dsKey = getSecret(PRESETS.deepseek.secret);
+  if (dsKey)
+    try {
+      const d = await getJSON("https://api.deepseek.com/user/balance", dsKey);
+      const b = (d?.balance_infos ?? [])
+        .map((i: any) => `${i.total_balance} ${i.currency}`)
+        .join(", ");
+      out.push({ name: "DeepSeek", ok: true, text: `balance ${b || "?"}` });
+    } catch (e: any) {
+      out.push({ name: "DeepSeek", ok: false, text: String(e?.message ?? e) });
+    }
+  return out;
 }

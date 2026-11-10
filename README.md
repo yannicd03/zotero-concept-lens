@@ -128,6 +128,7 @@ result is cached, so later visits are instant.
 | Hover card     | Show or hide the card's sections and order those below the definition. Number of other papers shown (default 5).                                                                                                                                                                                                                          |
 | Decision model | Format (`systemone` or an OpenAI-compatible chat model), endpoint, model, API key, link threshold. Default: Jev (`typesafe/jev-1.14`) via OpenRouter's `/systemone` route.                                                                                                                                                                |
 | LLM fallback   | Provider: **DeepSeek** (Flash or Pro), **Anthropic** (Claude Haiku, Sonnet or Opus), **OpenRouter** (DeepSeek Flash, Claude Haiku or Sonnet, Gemini Flash, GPT-6 Luna) or a **custom** endpoint (OpenAI-compatible or Anthropic Messages format). Each provider keeps its own API key; OpenRouter falls back to the decision model's key. |
+| Spending       | Requests, tokens and cost of this plugin's API calls: today, this month, all time, and this month by model. OpenRouter costs are exact; DeepSeek and Anthropic costs are price-list estimates. **Check provider accounts** shows the OpenRouter key's spend and limit and the DeepSeek balance.                                           |
 
 ## Privacy
 
@@ -141,7 +142,8 @@ result is cached, so later visits are instant.
   and the passage that uses the concept go to that endpoint, once per
   concept.
 - **The citation hover** uses only your local library.
-- **Caches** live in `<Zotero data directory>/conceptlens/`.
+- **Caches** and the spending record (`usage.json`) live in
+  `<Zotero data directory>/conceptlens/`.
 
 ## Development
 

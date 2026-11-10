@@ -29,4 +29,9 @@ export type FluentMessageId =
   | 'pref-provider-openrouter'
   | 'pref-related-limit'
   | 'pref-test'
-  | 'pref-threshold';
+  | 'pref-threshold'
+  | 'pref-usage-accounts'
+  | 'pref-usage-hint'
+  | 'pref-usage-refresh'
+  | 'pref-usage-reset'
+  | 'pref-usage-title';
