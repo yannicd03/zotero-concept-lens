@@ -1,9 +1,13 @@
 /**
  * Shares paper analyses and the glossary between computers through the
- * WebDAV server Zotero already uses for file sync. Files go to a
- * "conceptlens" folder next to Zotero's own "zotero" folder: Zotero keeps
- * attachments in <url>/zotero/ and its orphan cleanup only deletes .zip
- * and .prop files there (chrome/content/zotero/xpcom/storage/webdav.js).
+ * WebDAV server Zotero already uses for file sync. The files sit in
+ * Zotero's own <url>/zotero/ folder, named "conceptlens-*.json":
+ *  - that folder always exists and is writable (Zotero stores attachments
+ *    there), while a new folder next to it may not be allowed (on a
+ *    Synology server the WebDAV root holds only shared folders);
+ *  - Zotero's orphan cleanup skips files not named .zip or .prop, but
+ *    throws on subfolders ("Unexpected href"), so these are plain files
+ *    (chrome/content/zotero/xpcom/storage/webdav.js, purgeOrphanedStorageFiles).
  *
  * Address, username and password come from Zotero's WebDAV settings.
  * Credentials go into the request URL, like Zotero's own WebDAV requests:
@@ -17,7 +21,8 @@ import { getPref } from "../utils/prefs";
 import { listFiles, readJSON, writeJSON } from "../utils/store";
 import { log } from "../utils/log";
 
-const FOLDER = "conceptlens";
+const PREFIX = "conceptlens-";
+export const GLOSSARY_FILE = `${PREFIX}glossary.json`;
 const TIMEOUT = 30_000;
 /** Looking up one paper while it opens: don't keep the reader waiting. */
 const LOOKUP_TIMEOUT = 8_000;
@@ -53,10 +58,10 @@ export function webdavProblem(): string {
   return "";
 }
 
-/** The shared folder as shown to the user (no credentials). */
+/** Where the shared files go, as shown to the user (no credentials). */
 export function sharedFolderLabel(): string {
   const scheme = Zotero.Prefs.get("sync.storage.scheme") || "https";
-  return `${scheme}://${webdavURL()}/${FOLDER}/`;
+  return `${scheme}://${webdavURL()}/zotero/${PREFIX}*`;
 }
 
 export function sharingEnabled(): boolean {
@@ -78,13 +83,12 @@ async function folderURL(): Promise<string> {
     String(Zotero.Prefs.get("sync.storage.username")),
   );
   const pass = encodeURIComponent(passwordCache);
-  return `${scheme}://${user}:${pass}@${webdavURL()}/${FOLDER}/`;
+  return `${scheme}://${user}:${pass}@${webdavURL()}/zotero/`;
 }
 
 /** Forget the cached password (after a login failure or in tests). */
 export function resetCredentials() {
   passwordCache = undefined;
-  foldersReady = false;
   unreachableUntil = 0;
 }
 
@@ -123,19 +127,6 @@ function ok(status: number) {
   return status >= 200 && status < 300;
 }
 
-let foldersReady = false;
-
-async function ensureFolders() {
-  if (foldersReady) return;
-  for (const path of ["", "papers/"]) {
-    // 201 created; 405 (or 301) when it already exists
-    const r = await dav("MKCOL", path);
-    if (!ok(r.status) && r.status !== 405 && r.status !== 301)
-      throw new ShareError(`Can't create ${FOLDER}/${path} (HTTP ${r.status})`);
-  }
-  foldersReady = true;
-}
-
 /** GET a JSON file; undefined if it doesn't exist. */
 export async function getShared<T>(
   path: string,
@@ -154,7 +145,6 @@ export async function getShared<T>(
 }
 
 export async function putShared(path: string, value: unknown) {
-  await ensureFolders();
   const r = await dav("PUT", path, {
     body: JSON.stringify(value),
     headers: { "Content-Type": "application/json" },
@@ -163,17 +153,18 @@ export async function putShared(path: string, value: unknown) {
     throw new ShareError(`Writing ${path} failed (HTTP ${r.status})`);
 }
 
-/** File names in a shared folder ([] if it doesn't exist yet). */
-export async function listShared(path: string): Promise<string[]> {
-  const r = await dav("PROPFIND", path, {
+/** File names in Zotero's WebDAV folder. */
+export async function listShared(): Promise<string[]> {
+  const r = await dav("PROPFIND", "", {
     body:
       '<?xml version="1.0" encoding="utf-8"?>' +
       '<D:propfind xmlns:D="DAV:"><D:prop><D:getlastmodified/></D:prop></D:propfind>',
     headers: { Depth: "1", "Content-Type": "text/xml; charset=utf-8" },
   });
-  if (r.status === 404) return [];
   if (r.status !== 207 && !ok(r.status))
-    throw new ShareError(`Listing ${path} failed (HTTP ${r.status})`);
+    throw new ShareError(
+      `Listing Zotero's WebDAV folder failed (HTTP ${r.status})`,
+    );
   return hrefNames(r.text);
 }
 
@@ -217,15 +208,16 @@ export function localLibrary(portable: string): number | undefined {
   return id || undefined;
 }
 
-/** Shared name of a paper's analysis: "<library>-<attachment key>.json". */
+/** Shared name of a paper's analysis:
+ * "conceptlens-<library>-<attachment key>.json". */
 export function sharedPaperName(libraryID: number, key: string) {
   const lib = portableLibrary(libraryID);
-  return lib ? `${lib}-${key}.json` : undefined;
+  return lib ? `${PREFIX}${lib}-${key}.json` : undefined;
 }
 
 /** Local cache name (analyze.ts cacheName) for a shared paper name. */
 export function localPaperName(shared: string): string | undefined {
-  const m = /^(u|g\d+)-([A-Z0-9]+)\.json$/.exec(shared);
+  const m = /^conceptlens-(u|g\d+)-([A-Z0-9]+)\.json$/.exec(shared);
   const lib = m && localLibrary(m[1]);
   return lib ? `${lib}-${m[2]}.json` : undefined;
 }
@@ -251,7 +243,7 @@ export async function fetchSharedAnalysis<T extends SharedAnalysis>(
   const name = sharedPaperName(att.libraryID, att.key);
   if (!name) return undefined;
   try {
-    const set = await getShared<T>(`papers/${name}`, LOOKUP_TIMEOUT);
+    const set = await getShared<T>(name, LOOKUP_TIMEOUT);
     return usable(set, version) ? set : undefined;
   } catch (e) {
     failed("fetching shared analysis", e);
@@ -265,7 +257,7 @@ export function shareAnalysis(att: Zotero.Item, set: SharedAnalysis) {
   const name = sharedPaperName(att.libraryID, att.key);
   if (!name) return;
   // Missed uploads are caught up by the next syncPapers.
-  putShared(`papers/${name}`, set).catch((e) => failed("sharing analysis", e));
+  putShared(name, set).catch((e) => failed("sharing analysis", e));
 }
 
 export interface PaperSyncResult {
@@ -282,7 +274,7 @@ export interface PaperSyncResult {
 export async function syncPapers(version: number): Promise<PaperSyncResult> {
   unreachableUntil = 0; // an explicit sync always tries
   const remote = new Set(
-    (await listShared("papers/")).filter((n) => n.endsWith(".json")),
+    (await listShared()).filter((n) => n.startsWith(PREFIX)),
   );
   const local = new Set(await listFiles("papers"));
   const result: PaperSyncResult = { downloaded: [], uploaded: 0 };
@@ -290,7 +282,7 @@ export async function syncPapers(version: number): Promise<PaperSyncResult> {
   for (const name of remote) {
     const localName = localPaperName(name);
     if (!localName || local.has(localName)) continue;
-    const set = await getShared<SharedAnalysis>(`papers/${name}`);
+    const set = await getShared<SharedAnalysis>(name);
     if (!usable(set, version)) continue;
     await writeJSON(set, "papers", localName);
     result.downloaded.push({ localName, set });
@@ -302,7 +294,7 @@ export async function syncPapers(version: number): Promise<PaperSyncResult> {
     if (!name || remote.has(name)) continue;
     const set = await readJSON<SharedAnalysis>("papers", localName);
     if (!usable(set, version) || set!.error) continue;
-    await putShared(`papers/${name}`, set);
+    await putShared(name, set);
     result.uploaded++;
   }
   return result;

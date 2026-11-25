@@ -5,7 +5,7 @@ const api = () => (Zotero as any)[config.addonInstance].api;
 
 const STORAGE_PREFS = ["protocol", "scheme", "url", "username"];
 const SHARE_PREF = `${config.prefsPrefix}.share.enabled`;
-const ROOT = "https://me:p%40ss@dav.example.invalid/files/conceptlens/";
+const ROOT = "https://me:p%40ss@dav.example.invalid/files/zotero/";
 
 const http = () => Zotero.HTTP as any;
 const webdav = () => (Zotero as any).Sync.Storage.Mode.WebDAV.prototype;
@@ -14,7 +14,7 @@ describe("shared", function () {
   let saved: Record<string, unknown>;
   let originalRequest: any;
   let originalPassword: any;
-  /** The fake WebDAV server: path under conceptlens/ -> file content */
+  /** The fake WebDAV server: file name in zotero/ -> content */
   let server: Map<string, string>;
   let urls: string[];
   const localFiles: string[] = [];
@@ -29,7 +29,7 @@ describe("shared", function () {
     const reply = (status: number, response = "") => ({ status, response });
     switch (method) {
       case "MKCOL":
-        return reply(201);
+        throw new Error("the plugin must not create folders on the server");
       case "PUT":
         server.set(path, opts.body);
         return reply(201);
@@ -40,8 +40,8 @@ describe("shared", function () {
         const files = [...server.keys()].filter((p) => p.startsWith(path));
         // Mixed namespace prefixes and URL-encoding, as real servers send
         const hrefs = [
-          `<d:href>/files/conceptlens/${path}</d:href>`,
-          ...files.map((f) => `<D:href>/files/conceptlens/${f}</D:href>`),
+          `<d:href>/files/zotero/${path}</d:href>`,
+          ...files.map((f) => `<D:href>/files/zotero/${f}</D:href>`),
         ];
         return reply(207, `<d:multistatus>${hrefs.join("")}</d:multistatus>`);
       }
@@ -113,11 +113,18 @@ describe("shared", function () {
     const { sharedPaperName, localPaperName, portableLibrary } = api().shared;
     const user = Zotero.Libraries.userLibraryID;
     assert.equal(portableLibrary(user), "u");
-    assert.equal(sharedPaperName(user, "ABCD2345"), "u-ABCD2345.json");
-    assert.equal(localPaperName("u-ABCD2345.json"), `${user}-ABCD2345.json`);
+    assert.equal(
+      sharedPaperName(user, "ABCD2345"),
+      "conceptlens-u-ABCD2345.json",
+    );
+    assert.equal(
+      localPaperName("conceptlens-u-ABCD2345.json"),
+      `${user}-ABCD2345.json`,
+    );
     // A group this computer doesn't have, and names that aren't ours
-    assert.isUndefined(localPaperName("g987654321-ABCD2345.json"));
-    assert.isUndefined(localPaperName("glossary.json"));
+    assert.isUndefined(localPaperName("conceptlens-g987654321-ABCD2345.json"));
+    assert.isUndefined(localPaperName("conceptlens-glossary.json"));
+    assert.isUndefined(localPaperName("ABCD2345.zip"));
   });
 
   it("is off unless Zotero's file sync uses WebDAV", function () {
@@ -125,7 +132,7 @@ describe("shared", function () {
     assert.isTrue(sharingEnabled());
     assert.equal(
       sharedFolderLabel(),
-      "https://dav.example.invalid/files/conceptlens/",
+      "https://dav.example.invalid/files/zotero/conceptlens-*",
     );
     Zotero.Prefs.set("sync.storage.protocol", "zotero");
     assert.match(webdavProblem(), /not set to WebDAV/);
@@ -145,9 +152,15 @@ describe("shared", function () {
       localPath(`${user}-SHRLOCAL.json`),
       analysis("local concept"),
     );
-    server.set("papers/u-SHRREMOT.json", JSON.stringify(analysis("remote")));
+    // Zotero's own attachment files sit next to ours
+    server.set("SHRREMOT.zip", "zip");
+    server.set("SHRREMOT.prop", "<properties/>");
     server.set(
-      "papers/u-SHROLDVR.json",
+      "conceptlens-u-SHRREMOT.json",
+      JSON.stringify(analysis("remote")),
+    );
+    server.set(
+      "conceptlens-u-SHROLDVR.json",
       JSON.stringify(analysis("old", version - 1)),
     );
 
@@ -162,7 +175,7 @@ describe("shared", function () {
     assert.isFalse(await IOUtils.exists(localPath(`${user}-SHROLDVR.json`)));
     assert.isAtLeast(r.uploaded, 1);
     assert.equal(
-      JSON.parse(server.get("papers/u-SHRLOCAL.json")!).concepts[0].term,
+      JSON.parse(server.get("conceptlens-u-SHRLOCAL.json")!).concepts[0].term,
       "local concept",
     );
   });
@@ -174,7 +187,7 @@ describe("shared", function () {
     created.push(parent);
     localFiles.push(`${parent.libraryID}-${parent.key}.json`);
     server.set(
-      `papers/u-${parent.key}.json`,
+      `conceptlens-u-${parent.key}.json`,
       JSON.stringify(analysis("borrowed concept")),
     );
 
@@ -223,7 +236,7 @@ describe("shared", function () {
       forgetGlossary,
     } = api().definitions;
     server.set(
-      "glossary.json",
+      "conceptlens-glossary.json",
       JSON.stringify({
         "zeta function": {
           text: "A function defined by a Dirichlet series.",
@@ -243,7 +256,7 @@ describe("shared", function () {
       "",
     );
     assert.equal(def?.text, "A function defined by a Dirichlet series.");
-    const remote = JSON.parse(server.get("glossary.json")!);
+    const remote = JSON.parse(server.get("conceptlens-glossary.json")!);
     assert.isTrue(remote["only here"].deleted);
     await forgetGlossary();
   });
@@ -259,7 +272,7 @@ describe("shared", function () {
         : originalRequest.call(Zotero.HTTP, m, u, o);
     assert.isUndefined(await fetchSharedAnalysis(att, version));
     http().request = working;
-    server.set("papers/u-SHRDOWN1.json", JSON.stringify(analysis("late")));
+    server.set("conceptlens-u-SHRDOWN1.json", JSON.stringify(analysis("late")));
     urls = [];
     assert.isUndefined(await fetchSharedAnalysis(att, version));
     assert.lengthOf(urls, 0, "no request while backing off");
@@ -270,7 +283,7 @@ describe("shared", function () {
   });
 
   it("sends Zotero's WebDAV login in the request URL", async function () {
-    await api().shared.listShared("papers/");
+    await api().shared.listShared();
     assert.isTrue(urls[0].startsWith(ROOT));
   });
 });

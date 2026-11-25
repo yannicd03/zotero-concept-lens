@@ -21,6 +21,7 @@ import { papersWith } from "./conceptIndex";
 import { searchRelated, shortLabel } from "./related";
 import { log } from "../../utils/log";
 import {
+  GLOSSARY_FILE,
   getShared,
   localLibrary,
   portableLibrary,
@@ -152,7 +153,7 @@ function sameGlossary(a: Glossary, b: Glossary) {
  * from the server.
  */
 export async function syncGlossary(): Promise<number> {
-  const remote = (await getShared<Glossary>("glossary.json")) ?? {};
+  const remote = (await getShared<Glossary>(GLOSSARY_FILE)) ?? {};
   // Read after the network wait, so entries remembered meanwhile are kept.
   const local = await loadGlossary();
   const merged = mergeGlossaries(local, remote);
@@ -163,7 +164,7 @@ export async function syncGlossary(): Promise<number> {
     glossary = merged;
     await writeJSON(merged, "glossary.json");
   }
-  if (!sameGlossary(merged, remote)) await putShared("glossary.json", merged);
+  if (!sameGlossary(merged, remote)) await putShared(GLOSSARY_FILE, merged);
   return fromServer;
 }
 
