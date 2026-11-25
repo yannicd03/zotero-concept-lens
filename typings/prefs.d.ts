@@ -20,6 +20,7 @@ declare namespace _ZoteroTypes {
       "llm.provider": string;
       "llm.deepseekModel": string;
       "llm.anthropicModel": string;
+      "llm.anthropicEffort": string;
       "llm.openrouterModel": string;
       "llm.format": string;
       "llm.endpoint": string;

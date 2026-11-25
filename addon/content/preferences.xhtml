@@ -48,6 +48,10 @@
         <menupopup>
           <menuitem value="systemone" data-l10n-id="pref-format-systemone" />
           <menuitem value="chat" data-l10n-id="pref-format-chat" />
+          <menuitem
+            value="anthropic"
+            data-l10n-id="pref-format-chat-anthropic"
+          />
         </menupopup>
       </menulist>
       <html:label data-l10n-id="pref-endpoint"></html:label>
@@ -100,6 +104,19 @@
         data-llm="preset"
       >
         <menupopup />
+      </menulist>
+      <!-- Anthropic only: thinking effort -->
+      <html:label data-l10n-id="pref-effort" data-llm="anthropic"></html:label>
+      <menulist
+        preference="llm.anthropicEffort"
+        native="true"
+        data-llm="anthropic"
+      >
+        <menupopup>
+          <menuitem value="low" data-l10n-id="pref-effort-low" />
+          <menuitem value="medium" data-l10n-id="pref-effort-medium" />
+          <menuitem value="high" data-l10n-id="pref-effort-high" />
+        </menupopup>
       </menulist>
       <!-- custom endpoint: free-form -->
       <html:label data-l10n-id="pref-format" data-llm="custom"></html:label>

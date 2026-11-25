@@ -12,6 +12,15 @@ import { getSecret, setSecret, SecretName } from "../utils/secrets";
 export type LlmProvider = "deepseek" | "anthropic" | "openrouter" | "custom";
 export type LlmFormat = "openai" | "anthropic";
 
+/** Thinking effort for Claude models that take one (see clients.ts). */
+export const EFFORTS = ["low", "medium", "high"] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+export function anthropicEffort(): Effort {
+  const e = getPref("llm.anthropicEffort") as Effort;
+  return EFFORTS.includes(e) ? e : "low";
+}
+
 export interface PresetModel {
   id: string;
   label: string;

@@ -16,7 +16,8 @@ pref("card.relatedLimit", 5);
 // Decision model: filters rule-proposed candidates (yes/no per candidate)
 // and picks the best defining sentence. API keys live in the login manager.
 // format: "systemone" (OpenRouter /systemone, e.g. Jev) or "chat"
-// (an OpenAI-compatible chat model asked for yes/no probabilities)
+// (an OpenAI-compatible chat model asked for yes/no probabilities) or
+// "anthropic" (the same, over the Anthropic Messages API)
 pref("decision.format", "systemone");
 pref("decision.endpoint", "https://openrouter.ai/api/v1/systemone");
 pref("decision.model", "typesafe/jev-1.14");
@@ -32,6 +33,9 @@ pref("llm.enabled", true);
 pref("llm.provider", "deepseek");
 pref("llm.deepseekModel", "deepseek-flash");
 pref("llm.anthropicModel", "claude-haiku-5-5");
+// Thinking effort for current Claude models on api.anthropic.com:
+// "low", "medium" or "high"
+pref("llm.anthropicEffort", "low");
 pref("llm.openrouterModel", "deepseek/deepseek-v4.1-flash");
 pref("llm.format", "openai");
 pref("llm.endpoint", "");

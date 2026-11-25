@@ -149,8 +149,8 @@ function bindSecret(
 // --- LLM provider ------------------------------------------------------------
 
 /**
- * Provider dropdown: presets show a model list, "custom" shows the
- * free-form format/endpoint/model fields. The key field holds the selected
+ * Provider dropdown: presets show a model list (Anthropic also an effort
+ * list), "custom" shows the free-form format/endpoint/model fields. The key field holds the selected
  * provider's own key; when it is empty and the provider inherits the
  * decision key (OpenRouter), the placeholder says so. Returns a function
  * that redraws the section.
@@ -166,9 +166,11 @@ function bindLlmProvider(doc: Document): () => void {
     const provider = currentProvider();
     providerList.value = provider;
     const custom = provider === "custom";
+    const shown = [custom ? "custom" : "preset", provider];
     for (const el of doc.querySelectorAll("[data-llm]"))
-      (el as HTMLElement).hidden =
-        el.getAttribute("data-llm") !== (custom ? "custom" : "preset");
+      (el as HTMLElement).hidden = !shown.includes(
+        el.getAttribute("data-llm") ?? "",
+      );
     if (!custom) {
       const popup = modelList.menupopup ?? modelList.querySelector("menupopup");
       popup.replaceChildren(

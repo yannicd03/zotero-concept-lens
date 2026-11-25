@@ -30,6 +30,7 @@ const PREFS = {
   CONCEPTLENS_LLM_FORMAT: ["llm.format", String],
   CONCEPTLENS_LLM_ENDPOINT: ["llm.endpoint", String],
   CONCEPTLENS_LLM_MODEL: ["llm.model", String],
+  CONCEPTLENS_LLM_EFFORT: ["llm.anthropicEffort", String],
 };
 const SECRETS = {
   CONCEPTLENS_DECISION_API_KEY: "decision",

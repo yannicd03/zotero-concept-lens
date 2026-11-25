@@ -9,6 +9,7 @@ import { getSecret } from "../utils/secrets";
 import {
   LlmProvider,
   PRESETS,
+  anthropicEffort,
   currentProvider,
   keyFor,
   providerSettings,
@@ -99,7 +100,7 @@ export type DecisionAnswer =
   | { type: "choice"; choice: string; probabilities: Record<string, number> };
 
 export interface DecisionSettings {
-  format: "systemone" | "chat";
+  format: "systemone" | "chat" | "anthropic";
   endpoint: string;
   model: string;
   key: string;
@@ -120,7 +121,8 @@ export async function decide(
   questions: Record<string, DecisionQuestion>,
   s: DecisionSettings = decisionSettings(),
 ): Promise<Record<string, DecisionAnswer>> {
-  if (s.format === "chat") return decideViaChat(state, questions, s);
+  if (s.format === "chat" || s.format === "anthropic")
+    return decideViaChat(state, questions, s);
   const data = await postJSON(
     s.endpoint,
     { model: s.model, state, questions },
@@ -136,8 +138,8 @@ export async function decide(
 }
 
 /**
- * Fallback for endpoints without a /systemone route: ask an
- * OpenAI-compatible chat model for the answers as JSON.
+ * Fallback for endpoints without a /systemone route: ask a chat model
+ * (OpenAI-compatible, or Anthropic Messages) for the answers as JSON.
  */
 async function decideViaChat(
   state: string,
@@ -151,7 +153,7 @@ async function decideViaChat(
   );
   const text = await chatComplete(
     {
-      format: "openai",
+      format: s.format === "anthropic" ? "anthropic" : "openai",
       endpoint: s.endpoint,
       model: s.model,
       key: s.key,
@@ -317,7 +319,7 @@ function hostOf(url: string): string {
 /**
  * Current Claude models think by default and can't all switch it off
  * (`thinking: {type: "disabled"}` is a 400 on Opus 5.5 and Sonnet 5.5), so
- * short answers ask for low effort instead. Older models (Haiku 4.5,
+ * the effort setting (llm.anthropicEffort, low by default) controls depth. Older models (Haiku 4.5,
  * Sonnet 4.5, ...) reject `effort`, so it is only sent to these families.
  */
 const CLAUDE_WITH_EFFORT =
@@ -340,7 +342,7 @@ async function anthropicMessages(
       max_tokens: tokenLimit(s, url, maxTokens),
       system,
       messages: [{ role: "user", content: user }],
-      ...(effort ? { output_config: { effort: "low" } } : {}),
+      ...(effort ? { output_config: { effort: anthropicEffort() } } : {}),
     },
     {
       "x-api-key": s.key,

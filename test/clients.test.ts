@@ -125,6 +125,93 @@ describe("clients", function () {
     assert.equal(cleanCompletion("  plain  "), "plain");
   });
 
+  it("asks the decision model over the Anthropic Messages API", async function () {
+    const { decide } = clients();
+    const http = Zotero.HTTP as any;
+    const original = http.request;
+    let sent: any;
+    http.request = async (method: string, url: string, opts: any) => {
+      sent = {
+        method,
+        url,
+        headers: opts.headers,
+        body: JSON.parse(opts.body),
+      };
+      return {
+        status: 200,
+        response: {
+          stop_reason: "end_turn",
+          content: [
+            { type: "thinking", thinking: "…" },
+            { type: "text", text: '{"keep": 0.9, "kind": "method"}' },
+          ],
+        },
+      };
+    };
+    try {
+      const answers = await decide(
+        "Gradient descent minimises a loss.",
+        {
+          keep: { type: "noul", instructions: "Is this a concept?" },
+          kind: {
+            type: "choice",
+            instructions: "What kind?",
+            criteria: { method: "a method", other: "anything else" },
+          },
+        },
+        {
+          format: "anthropic",
+          endpoint: "https://anthropic.example.invalid",
+          model: "claude-haiku-5-5",
+          key: "sk-test",
+        },
+      );
+      assert.equal(sent.url, "https://anthropic.example.invalid/v1/messages");
+      assert.equal(sent.headers["x-api-key"], "sk-test");
+      assert.notProperty(sent.headers, "Authorization");
+      assert.equal(sent.body.model, "claude-haiku-5-5");
+      assert.isString(sent.body.system);
+      assert.deepEqual(answers.keep, { type: "noul", noul: 0.9 });
+      assert.equal(answers.kind.choice, "method");
+    } finally {
+      http.request = original;
+    }
+  });
+
+  it("sends the chosen effort to Claude on api.anthropic.com", async function () {
+    const { chatComplete } = clients();
+    const effortPref = `${config.prefsPrefix}.llm.anthropicEffort`;
+    const saved = Zotero.Prefs.get(effortPref, true);
+    const http = Zotero.HTTP as any;
+    const original = http.request;
+    const bodies: any[] = [];
+    http.request = async (_m: string, _u: string, opts: any) => {
+      bodies.push(JSON.parse(opts.body));
+      return {
+        status: 200,
+        response: { content: [{ type: "text", text: "A definition." }] },
+      };
+    };
+    const s = {
+      format: "anthropic",
+      endpoint: "https://api.anthropic.com",
+      model: "claude-sonnet-5-5",
+      key: "sk-test",
+    };
+    try {
+      Zotero.Prefs.set(effortPref, "medium", true);
+      await chatComplete(s, "sys", "user");
+      Zotero.Prefs.set(effortPref, "bogus", true);
+      await chatComplete(s, "sys", "user");
+      assert.deepEqual(bodies[0].output_config, { effort: "medium" });
+      assert.deepEqual(bodies[1].output_config, { effort: "low" });
+    } finally {
+      http.request = original;
+      if (saved === undefined) Zotero.Prefs.clear(effortPref, true);
+      else Zotero.Prefs.set(effortPref, saved, true);
+    }
+  });
+
   it("does not pause the LLM for endpoints that never hit a quota", function () {
     const { llmPause } = clients();
     assert.isUndefined(
