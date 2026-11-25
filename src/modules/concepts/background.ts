@@ -6,11 +6,17 @@
  * for yet are retried on the next pass. A failing decision model (e.g. out
  * of credits) pauses the pass until the next one. Definitions are not
  * generated here; they stay on hover in an open paper.
+ *
+ * With sharing on, each pass first exchanges analyses and the glossary
+ * with the WebDAV server (shared.ts), so papers analysed on another
+ * computer are not sent to the decision model again.
  */
 import { config } from "../../../package.json";
 import { getPref } from "../../utils/prefs";
 import { log } from "../../utils/log";
-import { analyzeAttachment, cachedAnalysis } from "./analyze";
+import { ANALYSIS_VERSION, analyzeAttachment, cachedAnalysis } from "./analyze";
+import { syncGlossary } from "./definitions";
+import { sharingEnabled, syncPapers } from "../shared";
 import { loadIndex, updateIndex } from "./conceptIndex";
 
 export interface BackgroundStatus {
@@ -68,10 +74,51 @@ async function libraryPDFs(): Promise<Zotero.Item[]> {
   return out.map((o) => o.att);
 }
 
+export interface SyncStatus {
+  at: Date;
+  ok: boolean;
+  text: string;
+}
+let lastSync: SyncStatus | undefined;
+
+export function syncStatus(): SyncStatus | undefined {
+  return lastSync;
+}
+
+/**
+ * Exchanges paper analyses and the glossary with the shared WebDAV folder.
+ * Never throws; the outcome is kept for the settings pane.
+ */
+export async function syncShared(): Promise<SyncStatus> {
+  try {
+    await loadIndex();
+    const papers = await syncPapers(ANALYSIS_VERSION);
+    for (const { localName, set } of papers.downloaded) {
+      const m = /^(\d+)-([A-Z0-9]+)\.json$/.exec(localName)!;
+      const att = Zotero.Items.getByLibraryAndKey(Number(m[1]), m[2]);
+      if (att && !att.deleted) updateIndex(att as Zotero.Item, set);
+    }
+    const terms = await syncGlossary();
+    lastSync = {
+      at: new Date(),
+      ok: true,
+      text:
+        `${papers.downloaded.length} papers and ${terms} definitions ` +
+        `received, ${papers.uploaded} papers sent`,
+    };
+  } catch (e: any) {
+    lastSync = { at: new Date(), ok: false, text: String(e?.message ?? e) };
+    log("shared sync failed", e);
+  }
+  return lastSync;
+}
+
 async function pass(gen: number) {
   status.state = "running";
   status.error = undefined;
   await loadIndex();
+  if (sharingEnabled()) await syncShared();
+  if (gen !== generation) return;
   const atts = await libraryPDFs();
   status.total = atts.length;
   status.analysed = 0;

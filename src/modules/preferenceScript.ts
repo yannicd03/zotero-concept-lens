@@ -18,7 +18,12 @@ import {
   llmSettings,
 } from "./clients";
 import { ModelRow, Totals, reset as resetUsage, summary } from "./usage";
-import { backgroundStatus } from "./concepts/background";
+import {
+  backgroundStatus,
+  syncShared,
+  syncStatus,
+} from "./concepts/background";
+import { sharedFolderLabel, sharingEnabled, webdavProblem } from "./shared";
 import {
   LlmProvider,
   PRESETS,
@@ -41,6 +46,7 @@ export async function registerPrefsScripts(win: Window) {
   bindSecret(doc, `${ref}-decision-key`, "decision", refreshLlm);
   bindUsage(win);
   bindIndexStatus(win);
+  bindSharing(win);
   doc
     .getElementById(`${ref}-decision-test`)
     ?.addEventListener("command", () => testDecision(doc));
@@ -238,6 +244,50 @@ function bindIndexStatus(win: Window) {
   update();
   const t = win.setInterval(update, 2000);
   win.addEventListener("unload", () => win.clearInterval(t));
+}
+
+// --- sharing -------------------------------------------------------------------
+
+function bindSharing(win: Window) {
+  const doc = win.document;
+  const where = doc.getElementById(`${ref}-share-where`);
+  const button = doc.getElementById(`${ref}-share-sync`) as any;
+  if (!where || !button) return;
+
+  const showLast = () => {
+    const last = syncStatus();
+    status(
+      doc,
+      "share",
+      last?.ok ?? true,
+      last ? `${last.at.toLocaleTimeString()}: ${last.text}` : "",
+    );
+  };
+  const render = () => {
+    const problem = webdavProblem();
+    where.textContent = problem
+      ? `Not available: ${problem}.`
+      : `Folder: ${sharedFolderLabel()}`;
+    button.disabled = !sharingEnabled();
+  };
+
+  button.addEventListener("command", async () => {
+    button.disabled = true;
+    status(doc, "share", true, "Syncing…");
+    await syncShared();
+    showLast();
+    render();
+  });
+  const observer = Zotero.Prefs.registerObserver(
+    `${config.prefsPrefix}.share.enabled`,
+    render,
+    true,
+  );
+  win.addEventListener("unload", () =>
+    Zotero.Prefs.unregisterObserver(observer),
+  );
+  render();
+  showLast();
 }
 
 // --- spending ----------------------------------------------------------------

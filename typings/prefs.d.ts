@@ -25,6 +25,7 @@ declare namespace _ZoteroTypes {
       "llm.format": string;
       "llm.endpoint": string;
       "llm.model": string;
+      "share.enabled": boolean;
       "citation.enabled": boolean;
     };
   }

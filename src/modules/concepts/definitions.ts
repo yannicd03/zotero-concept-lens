@@ -6,6 +6,10 @@
  *     (picked by the decision model if configured)
  *  4. the LLM fallback (if enabled and configured)
  *  5. the sentence introducing the acronym in this paper
+ *
+ * The glossary can be shared between computers (shared.ts): entries are
+ * merged per term, newest first, and deletions are kept as markers so a
+ * merge doesn't bring them back.
  */
 import { getPref } from "../../utils/prefs";
 import { readJSON, writeJSON } from "../../utils/store";
@@ -16,40 +20,163 @@ import { cleanDocumentText } from "./doctext";
 import { papersWith } from "./conceptIndex";
 import { searchRelated, shortLabel } from "./related";
 import { log } from "../../utils/log";
+import {
+  getShared,
+  localLibrary,
+  portableLibrary,
+  putShared,
+  sharingEnabled,
+} from "../shared";
 
 export interface Definition {
   text: string;
   source:
     | { kind: "paper" }
-    | { kind: "library"; itemID: number; label: string }
+    | {
+        kind: "library";
+        /** Local item number (resolved from itemKey when read back) */
+        itemID: number;
+        label: string;
+        /** Item key and portable library id ("u", "g<id>"), stored */
+        itemKey?: string;
+        library?: string;
+      }
     | { kind: "llm"; model: string }
     | { kind: "intro" };
 }
 
-type Glossary = Record<string, Definition & { at: string }>;
+type Entry = Definition & { at: string; deleted?: undefined };
+type Deleted = { deleted: true; at: string };
+export type Glossary = Record<string, Entry | Deleted>;
 let glossary: Glossary | undefined;
 
 async function loadGlossary(): Promise<Glossary> {
-  glossary ??= (await readJSON<Glossary>("glossary.json")) ?? {};
+  glossary ??= withItemKeys((await readJSON<Glossary>("glossary.json")) ?? {});
   return glossary;
 }
 
+/** Entries from before sharing know their source paper only by its local
+ * item number; add the key while this computer can still resolve it. */
+function withItemKeys(g: Glossary): Glossary {
+  for (const e of Object.values(g)) {
+    if (e.deleted || e.source?.kind !== "library" || e.source.itemKey) continue;
+    const item = Zotero.Items.get(e.source.itemID);
+    const library = item && portableLibrary(item.libraryID);
+    if (item && library)
+      Object.assign(e.source, { itemKey: item.key, library });
+  }
+  return g;
+}
+
+async function saveGlossary(g: Glossary) {
+  glossary = g;
+  await writeJSON(g, "glossary.json");
+  scheduleGlossarySync();
+}
+
+const now = () => new Date().toISOString();
+
 async function remember(term: string, def: Definition) {
   const g = await loadGlossary();
-  g[term.toLowerCase()] = { ...def, at: new Date().toISOString() };
-  await writeJSON(g, "glossary.json");
+  let stored = def;
+  if (def.source.kind === "library") {
+    const item = Zotero.Items.get(def.source.itemID);
+    const library = item && portableLibrary(item.libraryID);
+    if (item && library)
+      stored = {
+        ...def,
+        source: { ...def.source, itemKey: item.key, library },
+      };
+  }
+  g[term.toLowerCase()] = { ...stored, at: now() };
+  await saveGlossary(g);
+}
+
+/** A stored entry as a usable definition, or undefined (deleted, or its
+ * source paper is not in this library). */
+function fromGlossary(e: Entry | Deleted | undefined): Definition | undefined {
+  if (!e || e.deleted) return undefined;
+  const { at: _at, ...def } = e;
+  if (def.source.kind !== "library") return def;
+  // No key: its paper was already gone here, or the entry came from a
+  // computer that couldn't resolve it. Look the definition up again.
+  if (!def.source.itemKey) return undefined;
+  const lib = localLibrary(def.source.library ?? "u");
+  const item = lib && Zotero.Items.getByLibraryAndKey(lib, def.source.itemKey);
+  if (!item || item.deleted) return undefined;
+  return { ...def, source: { ...def.source, itemID: item.id } };
 }
 
 /** Drop one cached definition (e.g. a wrong LLM answer). */
 export async function forgetDefinition(term: string) {
   const g = await loadGlossary();
-  delete g[term.toLowerCase()];
-  await writeJSON(g, "glossary.json");
+  g[term.toLowerCase()] = { deleted: true, at: now() };
+  await saveGlossary(g);
 }
 
 export async function forgetGlossary() {
-  glossary = {};
-  await writeJSON(glossary, "glossary.json");
+  const g = await loadGlossary();
+  const at = now();
+  for (const k of Object.keys(g)) g[k] = { deleted: true, at };
+  await saveGlossary(g);
+}
+
+/** Per term, the entry written last wins (deletions included). */
+export function mergeGlossaries(a: Glossary, b: Glossary): Glossary {
+  const out: Glossary = { ...a };
+  for (const [k, e] of Object.entries(b)) {
+    if (!validEntry(e)) continue;
+    if (!out[k] || e.at > out[k].at) out[k] = e;
+  }
+  return out;
+}
+
+/** A deletion marker, or a definition with text and a source. */
+function validEntry(e: any): e is Entry | Deleted {
+  if (typeof e?.at !== "string") return false;
+  if (e.deleted === true) return true;
+  return typeof e.text === "string" && typeof e.source?.kind === "string";
+}
+
+function sameGlossary(a: Glossary, b: Glossary) {
+  const ka = Object.keys(a);
+  return (
+    ka.length === Object.keys(b).length &&
+    ka.every((k) => b[k]?.at === a[k].at && !!b[k].deleted === !!a[k].deleted)
+  );
+}
+
+/**
+ * Merges this computer's glossary with the shared one and writes the
+ * result to whichever side lacked something. Returns how many entries came
+ * from the server.
+ */
+export async function syncGlossary(): Promise<number> {
+  const remote = (await getShared<Glossary>("glossary.json")) ?? {};
+  // Read after the network wait, so entries remembered meanwhile are kept.
+  const local = await loadGlossary();
+  const merged = mergeGlossaries(local, remote);
+  const fromServer = Object.keys(merged).filter(
+    (k) => merged[k] !== local[k],
+  ).length;
+  if (!sameGlossary(merged, local)) {
+    glossary = merged;
+    await writeJSON(merged, "glossary.json");
+  }
+  if (!sameGlossary(merged, remote)) await putShared("glossary.json", merged);
+  return fromServer;
+}
+
+let syncTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Share glossary changes a little later, batching several of them. */
+function scheduleGlossarySync() {
+  if (!sharingEnabled()) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(
+    () => syncGlossary().catch((e) => log("glossary sync failed", e)),
+    10_000,
+  );
 }
 
 function escapeRe(s: string) {
@@ -202,7 +329,8 @@ export function resolveDefinition(
   if (pending.has(key)) return pending.get(key)!;
   const p = (async (): Promise<Definition | undefined> => {
     const g = await loadGlossary();
-    if (g[key]) return g[key];
+    const known = fromGlossary(g[key]);
+    if (known) return known;
     const lib = await fromLibrary(concept, current, libraryID);
     if (lib) {
       await remember(concept.term, lib);

@@ -41,5 +41,10 @@ pref("llm.format", "openai");
 pref("llm.endpoint", "");
 pref("llm.model", "");
 
+// Share paper analyses and the glossary with your other computers through
+// the WebDAV server of Zotero's file sync (a "conceptlens" folder next to
+// its "zotero" folder). Needs Zotero's file sync set to WebDAV.
+pref("share.enabled", false);
+
 // Citation hover: show the library copy instead of the reference list
 pref("citation.enabled", true);

@@ -20,6 +20,7 @@ import * as citationLibrary from "./modules/citations/library";
 import * as usage from "./modules/usage";
 import * as conceptIndex from "./modules/concepts/conceptIndex";
 import * as background from "./modules/concepts/background";
+import * as shared from "./modules/shared";
 import * as prefs from "./modules/preferenceScript";
 
 export const plugin = {
@@ -43,5 +44,6 @@ export const plugin = {
     prefs,
     conceptIndex,
     background,
+    shared,
   },
 };

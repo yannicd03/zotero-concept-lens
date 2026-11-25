@@ -9,6 +9,7 @@ import { DecisionQuestion, decide, decisionSettings } from "../clients";
 import { cleanDocumentText } from "./doctext";
 import { log } from "../../utils/log";
 import { updateIndex } from "./conceptIndex";
+import { fetchSharedAnalysis, shareAnalysis } from "../shared";
 
 export interface Concept {
   id: string;
@@ -43,7 +44,7 @@ export function decisionConfigured(): boolean {
   return !!(s.endpoint && s.model && (s.key || local));
 }
 
-function settingsKey(): string {
+export function settingsKey(): string {
   if (!decisionConfigured()) return "rules";
   const s = decisionSettings();
   return [s.format, s.endpoint, s.model, getPref("decision.threshold")].join(
@@ -140,6 +141,13 @@ export function analyzeAttachment(
     if (!force) {
       const cached = await cachedAnalysis(att);
       if (cached) return cached;
+      // Another computer may have analysed it already (shared.ts).
+      const shared = await fetchSharedAnalysis<ConceptSet>(att, VERSION);
+      if (shared?.settingsKey === sk && !shared.error) {
+        await writeJSON(shared, "papers", cacheName(att));
+        updateIndex(att, shared);
+        return shared;
+      }
     }
     const raw = await att.attachmentText;
     // Not indexed yet: nothing to analyse, and nothing to cache.
@@ -192,6 +200,7 @@ export function analyzeAttachment(
     if (!error) {
       await writeJSON(set, "papers", cacheName(att));
       updateIndex(att, set);
+      shareAnalysis(att, set);
     }
     return set;
   })().finally(() => inflight.delete(key));
